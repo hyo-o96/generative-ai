@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:generative_ai/message_widget.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 class Chatroom extends StatefulWidget {
   const Chatroom({super.key});
@@ -29,6 +30,19 @@ class _ChatroomState extends State<Chatroom> {
   final ScrollController _scrollControler = ScrollController();
   bool isLoading = false;
 
+  late final GenerativeModel _model;
+  late final ChatSession _chatSession;
+
+  final String _apiKey = const String.fromEnvironment('API_KEY');
+
+  @override
+  void initState() {
+    super.initState();
+    // print(_apiKey);
+    _model = GenerativeModel(model: "gemini-pro", apiKey: _apiKey);
+    _chatSession = _model.startChat();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -36,12 +50,18 @@ class _ChatroomState extends State<Chatroom> {
         Expanded(
           child: ListView.builder(
             itemBuilder: (context, index) {
+              final content = _chatSession.history.toList()[index];
+              final text = content.parts
+                  .whereType<TextPart>()
+                  .map((part) => part.text)
+                  .join();
+
               return MessageWidget(
-                isUserMessage: index % 2 == 1,
-                message: chatbotHistory[index],
+                isUserMessage: content.role == 'user',
+                message: text,
               );
             },
-            itemCount: chatbotHistory.length,
+            itemCount: _chatSession.history.length,
             controller: _scrollControler,
           ),
         ),
@@ -91,23 +111,39 @@ class _ChatroomState extends State<Chatroom> {
     if (value.isEmpty) {
       return;
     }
+
     setState(() {
       isLoading = true;
-      chatbotHistory.add(value);
       _textController.clear();
     });
     _scrollToBottom();
 
-    Future.delayed(
-      const Duration(seconds: 1),
-      () {
-        setState(() {
-          isLoading = false;
-          chatbotHistory.add("I am a chatbot");
-        });
-        _scrollToBottom();
-        _focusNode.requestFocus();
-      },
-    );
+    final response = await _chatSession.sendMessage(Content.text(value));
+
+    setState(() {
+      isLoading = false;
+    });
+
+    _scrollToBottom();
+    _focusNode.requestFocus();
+
+    // setState(() {
+    //   isLoading = true;
+    //   chatbotHistory.add(value);
+    //   _textController.clear();
+    // });
+    // _scrollToBottom();
+
+    // Future.delayed(
+    //   const Duration(seconds: 1),
+    //   () {
+    //     setState(() {
+    //       isLoading = false;
+    //       chatbotHistory.add("I am a chatbot");
+    //     });
+    //     _scrollToBottom();
+    //     _focusNode.requestFocus();
+    //   },
+    // );
   }
 }
